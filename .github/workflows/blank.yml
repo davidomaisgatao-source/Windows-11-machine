@@ -1,0 +1,65 @@
+name: Windows 11 VM (Manual Setup)
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows_version:
+        description: 'Versão do Windows (win11 = Pro/Home, win11-ltsc = Enterprise LTSC)'
+        required: true
+        default: 'win11'
+        type: choice
+        options:
+          - win11
+          - win11-ltsc
+
+jobs:
+  run-windows-vm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Conectar ao Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          args: --hostname=github-win11
+
+      - name: Verificar suporte a KVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cpu-checker
+          sudo kvm-ok
+
+      - name: Iniciar VM Windows 11 (Modo Instalação Manual)
+        run: |
+          docker run -d --name windows \
+            --device=/dev/kvm \
+            --device=/dev/net/tun \
+            --cap-add NET_ADMIN \
+            -p 8006:8006 \
+            -p 3389:3389/tcp \
+            -p 3389:3389/udp \
+            -e VERSION="${{ github.event.inputs.windows_version }}" \
+            -e MANUAL="Y" \
+            -e RAM_SIZE="6G" \
+            -e CPU_CORES="4" \
+            -e DISK_SIZE="64G" \
+            --stop-timeout 120 \
+            dockurr/windows
+
+      - name: Exibir IP de Conexão
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo "=========================================================="
+          echo "VM WINDOWS 11 INICIADA!"
+          echo "1. Abra seu navegador e acesse: http://$TS_IP:8006"
+          echo "2. Conclua a instalação e ative a Área de Trabalho Remota."
+          echo "3. Conecte via Windows App usando o IP: $TS_IP"
+          echo "=========================================================="
+
+      - name: Manter VM ativa
+        run: |
+          while true; do
+            sleep 60
+          done
+          
